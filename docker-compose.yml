@@ -1,1 +1,53 @@
+version: '3.9'
 
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: postgres-db
+
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: testdb
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='cp %p /backups/archive/%f'
+
+  pgbackrest:
+    image: ubuntu:22.04
+    container_name: pgbackrest
+
+    depends_on:
+      - postgres
+
+    tty: true
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+      - ./pgbackrest:/etc/pgbackrest
+
+    command: >
+      bash -c "
+      apt update &&
+      apt install -y wget gnupg lsb-release &&
+      echo 'deb http://apt.postgresql.org/pub/repos/apt jammy-pgdg main' > /etc/apt/sources.list.d/pgdg.list &&
+      wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - &&
+      apt update &&
+      apt install -y pgbackrest postgresql-client &&
+      tail -f /dev/null
+      "
+
+volumes:
+  postgres_data:
